@@ -4,4 +4,4 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 SOURCES += main.c
-LIBS += -lmosquitto
+LIBS += -lmosquitto -ljson-c

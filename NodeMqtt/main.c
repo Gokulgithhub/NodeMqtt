@@ -7,6 +7,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <mosquitto.h>
+#include <json-c/json.h>
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -21,7 +22,7 @@
 // Server connection parameters
 //#define MQTT_HOSTNAME "106.51.48.231"
 #define MQTT_HOSTNAME "iot.eclipse.org"
-#define MQTT_PORT 1883 
+#define MQTT_PORT 1883
 //#define MQTT_USERNAME "clanmqtt"
 //#define MQTT_PASSWORD "clan123"
 //#define MQTT_TOPIC "test"
@@ -39,6 +40,7 @@ void signal_handler_IO (int status);   /* definition of signal handler */
 int wait_flag=TRUE;                    /* TRUE while no signal received */
 
 const char s[2] = "~",sbuf[512];
+size_t json_size;
 char *token, *r_machine_id, *cmd, machine_id[10], topic[128], *execmd;
 char time_buff[128],hwadd_buff[128],user_buff[128],volatge_buff[64],current_buff[64],power_buff[64],temperature_buff[64];
 
@@ -268,6 +270,18 @@ int main(int argc, char *argv[])
         printf("Debug Mode.\n");
     }
 
+    struct json_object *jobj;
+    struct {
+        int flag;
+        const char *flag_str;
+    } json_flags[] = {
+    { JSON_C_TO_STRING_PLAIN, "JSON_C_TO_STRING_PLAIN" },
+    { JSON_C_TO_STRING_SPACED, "JSON_C_TO_STRING_SPACED" },
+    { JSON_C_TO_STRING_PRETTY, "JSON_C_TO_STRING_PRETTY" },
+    { JSON_C_TO_STRING_NOZERO, "JSON_C_TO_STRING_NOZERO" },
+    { JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY, "JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY" },
+    { -1, NULL }
+};
 
     while(1){
         count_temp++;
@@ -333,29 +347,20 @@ int main(int argc, char *argv[])
                     fclose(mfile);
                 }
 
-                strcat(volatge_buff,"230");
-                strcat(current_buff,"10");
-                strcat(power_buff,"35");
-                strcat(temperature_buff,"95");
-                strcat(mpayload,"<");
-                strcat(mpayload,user_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,time_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,hwadd_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,volatge_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,current_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,power_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,temperature_buff);
-                strcat(mpayload,">");
-
                 printf("%s\n",mpayload);
+                jobj = json_object_new_object();
+                json_object_object_add(jobj,"hostname",json_object_new_string(user_buff));
+                json_object_object_add(jobj,"timestamp",json_object_new_string(time_buff));
+                json_object_object_add(jobj,"macaddress",json_object_new_string(hwadd_buff));
+                json_object_object_add(jobj,"voltage",json_object_new_string("230"));
+                json_object_object_add(jobj,"current",json_object_new_string("12"));
+                json_object_object_add(jobj,"power",json_object_new_string("35"));
+                json_object_object_add(jobj,"temperature",json_object_new_string("95"));
 
-                ret = mosquitto_publish (mosq, NULL, "device_transaction", sizeof(mpayload), mpayload, 0, false);
+                printf("%s\n",json_object_to_json_string_ext(jobj, json_flags[0].flag));
+                json_size = strlen(json_object_to_json_string_ext(jobj, json_flags[0].flag));
+                printf("Json Length: %d\n", json_size);
+                ret = mosquitto_publish (mosq, NULL, "device_transaction", json_size, json_object_to_json_string_ext(jobj, json_flags[0].flag), 0, false);
                 if (ret)
                 {
                     fprintf (stderr, "Can't publish to Mosquitto server\n");
@@ -365,36 +370,28 @@ int main(int argc, char *argv[])
                 {
                     connection_status=1;
                 }
-                memset(mpayload,'\0',sizeof(mpayload));
+                json_object_put(jobj);
+                json_size=0;
+
                 memset(volatge_buff,'\0',sizeof(volatge_buff));
                 memset(current_buff,'\0',sizeof(current_buff));
                 memset(power_buff,'\0',sizeof(power_buff));
                 memset(temperature_buff,'\0',sizeof(temperature_buff));
                 sleep(5);
 
-                strcat(volatge_buff,"228");
-                strcat(current_buff,"16");
-                strcat(power_buff,"38");
-                strcat(temperature_buff,"99");
-                strcat(mpayload,"<");
-                strcat(mpayload,user_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,time_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,hwadd_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,volatge_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,current_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,power_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,temperature_buff);
-                strcat(mpayload,">");
+                jobj = json_object_new_object();
+                json_object_object_add(jobj,"hostname",json_object_new_string(user_buff));
+                json_object_object_add(jobj,"timestamp",json_object_new_string(time_buff));
+                json_object_object_add(jobj,"macaddress",json_object_new_string(hwadd_buff));
+                json_object_object_add(jobj,"voltage",json_object_new_string("220"));
+                json_object_object_add(jobj,"current",json_object_new_string("18"));
+                json_object_object_add(jobj,"power",json_object_new_string("40"));
+                json_object_object_add(jobj,"temperature",json_object_new_string("90"));
 
-                printf("%s\n",mpayload);
-
-                ret = mosquitto_publish (mosq, NULL, "device_transaction", sizeof(mpayload), mpayload, 0, false);
+                printf("%s\n",json_object_to_json_string_ext(jobj, json_flags[0].flag));
+                json_size = strlen(json_object_to_json_string_ext(jobj, json_flags[0].flag));
+                printf("Json Length: %d\n", json_size);
+                ret = mosquitto_publish (mosq, NULL, "device_transaction", json_size, json_object_to_json_string_ext(jobj, json_flags[0].flag), 0, false);
                 if (ret)
                 {
                     fprintf (stderr, "Can't publish to Mosquitto server\n");
@@ -404,36 +401,28 @@ int main(int argc, char *argv[])
                 {
                     connection_status=1;
                 }
-                memset(mpayload,'\0',sizeof(mpayload));
+                json_object_put(jobj);
+                json_size=0;
+
                 memset(volatge_buff,'\0',sizeof(volatge_buff));
                 memset(current_buff,'\0',sizeof(current_buff));
                 memset(power_buff,'\0',sizeof(power_buff));
                 memset(temperature_buff,'\0',sizeof(temperature_buff));
                 sleep(5);
 
-                strcat(volatge_buff,"240");
-                strcat(current_buff,"15");
-                strcat(power_buff,"40");
-                strcat(temperature_buff,"98");
-                strcat(mpayload,"<");
-                strcat(mpayload,user_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,time_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,hwadd_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,volatge_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,current_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,power_buff);
-                strcat(mpayload,"><");
-                strcat(mpayload,temperature_buff);
-                strcat(mpayload,">");
+                jobj = json_object_new_object();
+                json_object_object_add(jobj,"hostname",json_object_new_string(user_buff));
+                json_object_object_add(jobj,"timestamp",json_object_new_string(time_buff));
+                json_object_object_add(jobj,"macaddress",json_object_new_string(hwadd_buff));
+                json_object_object_add(jobj,"voltage",json_object_new_string("235"));
+                json_object_object_add(jobj,"current",json_object_new_string("15"));
+                json_object_object_add(jobj,"power",json_object_new_string("30"));
+                json_object_object_add(jobj,"temperature",json_object_new_string("99"));
 
-                printf("%s\n",mpayload);
-
-                ret = mosquitto_publish (mosq, NULL, "device_transaction", sizeof(mpayload), mpayload, 0, false);
+                printf("%s\n",json_object_to_json_string_ext(jobj, json_flags[0].flag));
+                json_size = strlen(json_object_to_json_string_ext(jobj, json_flags[0].flag));
+                printf("Json Length: %d\n", json_size);
+                ret = mosquitto_publish (mosq, NULL, "device_transaction", json_size, json_object_to_json_string_ext(jobj, json_flags[0].flag), 0, false);
                 if (ret)
                 {
                     fprintf (stderr, "Can't publish to Mosquitto server\n");
@@ -443,7 +432,9 @@ int main(int argc, char *argv[])
                 {
                     connection_status=1;
                 }
-                memset(mpayload,'\0',sizeof(mpayload));
+                json_object_put(jobj);
+                json_size=0;
+
                 memset(volatge_buff,'\0',sizeof(volatge_buff));
                 memset(current_buff,'\0',sizeof(current_buff));
                 memset(power_buff,'\0',sizeof(power_buff));
